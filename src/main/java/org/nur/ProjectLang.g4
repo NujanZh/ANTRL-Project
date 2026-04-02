@@ -1,5 +1,9 @@
 grammar ProjectLang;
 
+@header {
+    package org.nur;
+}
+
 program: statement* EOF;
 
 statement
