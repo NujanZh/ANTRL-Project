@@ -7,6 +7,8 @@ import org.antlr.v4.runtime.tree.ParseTree;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 public class Main {
     public static void main(String[] args) throws Exception {
@@ -45,5 +47,10 @@ public class Main {
         } catch (IOException e) {
             System.err.println("Error while saving to file: " + e.getMessage());
         }
+
+        List<String> instructionList = Arrays.asList(outputCode.split("\n"));
+
+        Interpreter interpreter = new Interpreter();
+        interpreter.execute(instructionList);
     }
 }

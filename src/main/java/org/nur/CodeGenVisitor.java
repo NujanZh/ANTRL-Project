@@ -5,7 +5,6 @@ import org.nur.exception.CodeGenException;
 public class CodeGenVisitor extends ProjectLangBaseVisitor<Void> {
 
     private final StringBuilder code = new StringBuilder();
-
     private int labelCounter = 0;
 
     private String newLabel() {
@@ -16,9 +15,31 @@ public class CodeGenVisitor extends ProjectLangBaseVisitor<Void> {
         return code.toString();
     }
 
+    private void emit(String instruction) {
+        code.append(instruction).append("\n");
+    }
+
     @Override
     public Void visitIntExpr(ProjectLangParser.IntExprContext ctx) {
         emit("PUSH I " + ctx.getText());
+        return null;
+    }
+
+    @Override
+    public Void visitFloatExpr(ProjectLangParser.FloatExprContext ctx) {
+        emit("PUSH F " + ctx.getText());
+        return null;
+    }
+
+    @Override
+    public Void visitBoolExpr(ProjectLangParser.BoolExprContext ctx) {
+        emit("PUSH B " + ctx.getText());
+        return null;
+    }
+
+    @Override
+    public Void visitStringExpr(ProjectLangParser.StringExprContext ctx) {
+        emit("PUSH S " + ctx.getText());
         return null;
     }
 
@@ -115,7 +136,64 @@ public class CodeGenVisitor extends ProjectLangBaseVisitor<Void> {
         return null;
     }
 
-    private void emit(String instruction) {
-        code.append(instruction).append("\n");
+    @Override
+    public Void visitRelationalExpr(ProjectLangParser.RelationalExprContext ctx) {
+        visit(ctx.expr(0));
+        visit(ctx.expr(1));
+
+        switch (ctx.op.getText()) {
+            case "<" -> emit("LT");
+            case ">" -> emit("GT");
+            default -> throw new CodeGenException("Unknown operator: " + ctx.op.getText());
+        }
+        return null;
     }
+
+    @Override
+    public Void visitEqualityExpr(ProjectLangParser.EqualityExprContext ctx) {
+        visit(ctx.expr(0));
+        visit(ctx.expr(1));
+
+        switch (ctx.op.getText()) {
+            case "==" -> emit("EQ");
+            case "!=" -> emit("NEQ");
+            default -> throw new CodeGenException("Unknown operator: " + ctx.op.getText());
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitAndExpr(ProjectLangParser.AndExprContext ctx) {
+        visit(ctx.expr(0));
+        visit(ctx.expr(1));
+
+        emit("AND");
+        return null;
+    }
+
+    @Override
+    public Void visitOrExpr(ProjectLangParser.OrExprContext ctx) {
+        visit(ctx.expr(0));
+        visit(ctx.expr(1));
+
+        emit("OR");
+        return null;
+    }
+
+    @Override
+    public Void visitNotExpr(ProjectLangParser.NotExprContext ctx) {
+        visit(ctx.expr());
+
+        emit("NOT");
+        return null;
+    }
+
+    @Override
+    public Void visitUnaryMinusExpr(ProjectLangParser.UnaryMinusExprContext ctx) {
+        visit(ctx.expr());
+
+        emit("UMINUS");
+        return null;
+    }
+
 }
