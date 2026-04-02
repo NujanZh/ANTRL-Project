@@ -1,9 +1,16 @@
 package org.nur;
 
+import org.nur.exception.TypeCheckerException;
+
 import java.util.HashMap;
 import java.util.Map;
 
 public class TypeCheckerTree extends ProjectLangBaseVisitor<String> {
+
+    private static final String TYPE_INT = "int";
+    private static final String TYPE_FLOAT = "float";
+    private static final String TYPE_BOOL = "bool";
+    private static final String TYPE_STRING = "string";
 
     private final Map<String, String> symbolMap = new HashMap<>();
 
@@ -15,8 +22,7 @@ public class TypeCheckerTree extends ProjectLangBaseVisitor<String> {
             String varName = idNode.getText();
 
             if (symbolMap.containsKey(varName)) {
-                System.err.println("Error: Variable '" + varName + "' already declared.");
-                System.exit(1);
+                return reportRedeclaration(varName);
             }
             symbolMap.put(varName, type);
         }
@@ -28,8 +34,7 @@ public class TypeCheckerTree extends ProjectLangBaseVisitor<String> {
         String varName = ctx.ID().getText();
 
         if (!symbolMap.containsKey(varName)) {
-            System.err.println("Error: Using undeclared variable'" + varName + "'.");
-            System.exit(1);
+            return reportUndefined(varName);
         }
         return symbolMap.get(varName);
     }
@@ -39,17 +44,15 @@ public class TypeCheckerTree extends ProjectLangBaseVisitor<String> {
         String varName = ctx.ID().getText();
 
         if (!symbolMap.containsKey(varName)) {
-            System.err.println("Error: Attempt to assign a value to an undeclared variable '" + varName + "'.");
-            System.exit(1);
+            return reportUndefined(varName);
         }
 
         String varType = symbolMap.get(varName);
         String exprType = visit(ctx.expr());
 
-        if (varType.equals("float") && exprType.equals("int")) {
-        } else if (!varType.equals(exprType)) {
-            System.err.println("Type error: Cannot assign a value of type " + exprType + " to a variable of type " + varType + " ('" + varName + "').");
-            System.exit(1);
+        boolean isWideningConversion = varType.equals(TYPE_FLOAT) && exprType.equals(TYPE_INT);
+        if (!isWideningConversion && !varType.equals(exprType)) {
+            return reportTypeMismatch(varType, exprType, varName);
         }
 
         return varType;
@@ -62,20 +65,15 @@ public class TypeCheckerTree extends ProjectLangBaseVisitor<String> {
         String op = ctx.op.getText();
 
         if (op.equals(".")) {
-            if (!leftType.equals("string") || !rightType.equals("string")) {
-                System.err.println("Type Error: Operator '.' requires string operands.");
-                System.exit(1);
+            if (!leftType.equals(TYPE_STRING) || !rightType.equals(TYPE_STRING)) {
+                return reportInvalidOperandTypes(op, TYPE_STRING);
             }
-            return "string";
+            return TYPE_STRING;
         } else {
-            if ((leftType.equals("int") || leftType.equals("float")) &&
-                (rightType.equals("int") || rightType.equals("float"))) {
-                if (leftType.equals("float") || rightType.equals("float")) return "float";
-                return "int";
+            if (isNumeric(leftType) && isNumeric(rightType)) {
+                return resolveNumericType(leftType, rightType);
             }
-            System.err.println("Type Error: Operator '" + op + "' requires numeric operands.");
-            System.exit(1);
-            return null;
+            return reportInvalidOperandTypes(op, "numeric");
         }
     }
 
@@ -86,34 +84,29 @@ public class TypeCheckerTree extends ProjectLangBaseVisitor<String> {
         String op = ctx.op.getText();
 
         if (op.equals("%")) {
-            if (!leftType.equals("int") || !rightType.equals("int")) {
-                System.err.println("Type Error: Operator '%' requires integer operands.");
-                System.exit(1);
+            if (!leftType.equals(TYPE_INT) || !rightType.equals(TYPE_INT)) {
+                return reportInvalidOperandTypes(op, "integer");
             }
-            return "int";
+            return TYPE_INT;
         } else {
-            if ((leftType.equals("int") || leftType.equals("float")) &&
-                (rightType.equals("int") || rightType.equals("float"))) {
-                if (leftType.equals("float") || rightType.equals("float")) return "float";
-                return "int";
+            if (isNumeric(leftType) && isNumeric(rightType)) {
+                return resolveNumericType(leftType, rightType);
             }
-            System.err.println("Type Error: Operator '" + op + "' requires numeric operands.");
-            System.exit(1);
-            return null;
+            return reportInvalidOperandTypes(op, "numeric");
         }
     }
 
     @Override
-    public String visitIntExpr(ProjectLangParser.IntExprContext ctx) { return "int"; }
+    public String visitIntExpr(ProjectLangParser.IntExprContext ctx) { return TYPE_INT; }
 
     @Override
-    public String visitFloatExpr(ProjectLangParser.FloatExprContext ctx) { return "float"; }
+    public String visitFloatExpr(ProjectLangParser.FloatExprContext ctx) { return TYPE_FLOAT; }
 
     @Override
-    public String visitBoolExpr(ProjectLangParser.BoolExprContext ctx) { return "bool"; }
+    public String visitBoolExpr(ProjectLangParser.BoolExprContext ctx) { return TYPE_BOOL; }
 
     @Override
-    public String visitStringExpr(ProjectLangParser.StringExprContext ctx) { return "string"; }
+    public String visitStringExpr(ProjectLangParser.StringExprContext ctx) { return TYPE_STRING; }
 
     @Override
     public String visitAndExpr(ProjectLangParser.AndExprContext ctx) { return checkBool(ctx.expr(0), ctx.expr(1), "&&"); }
@@ -121,16 +114,38 @@ public class TypeCheckerTree extends ProjectLangBaseVisitor<String> {
     @Override
     public String visitOrExpr(ProjectLangParser.OrExprContext ctx) { return checkBool(ctx.expr(0), ctx.expr(1), "||"); }
 
+    @Override
+    public String visitParensExpr(ProjectLangParser.ParensExprContext ctx) { return visit(ctx.expr()); }
+
     private String checkBool(ProjectLangParser.ExprContext left, ProjectLangParser.ExprContext right, String op) {
-        if (!visit(left).equals("bool") || !visit(right).equals("bool")) {
-            System.err.println("Type Error: Operator '" + op + "' requires bool operands.");
-            System.exit(1);
+        if (!visit(left).equals(TYPE_BOOL) || !visit(right).equals(TYPE_BOOL)) {
+            return reportInvalidOperandTypes(op, TYPE_BOOL);
         }
-        return "bool";
+        return TYPE_BOOL;
     }
 
-    @Override
-    public String visitParensExpr(ProjectLangParser.ParensExprContext ctx) {
-        return visit(ctx.expr());
+    private boolean isNumeric(String type) {
+        return type.equals(TYPE_INT) || type.equals(TYPE_FLOAT);
+    }
+
+    private String resolveNumericType(String left, String right) {
+        if (left.equals(TYPE_FLOAT) || right.equals(TYPE_FLOAT)) return TYPE_FLOAT;
+        return TYPE_INT;
+    }
+
+    private String reportRedeclaration(String varName) {
+        throw new TypeCheckerException("Variable '" + varName + "' already declared.");
+    }
+
+    private String reportUndefined(String varName) {
+        throw new TypeCheckerException("Using undeclared variable '" + varName + "'.");
+    }
+
+    private String reportTypeMismatch(String varType, String exprType, String varName) {
+        throw new TypeCheckerException("Cannot assign " + exprType + " to variable of type " + varType + " ('" + varName + "').");
+    }
+
+    private String reportInvalidOperandTypes(String op, String requiredType) {
+        throw new TypeCheckerException("Operator '" + op + "' requires " + requiredType + " operands.");
     }
 }
