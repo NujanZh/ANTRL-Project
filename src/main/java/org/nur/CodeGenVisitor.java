@@ -82,7 +82,7 @@ public class CodeGenVisitor extends ProjectLangBaseVisitor<Void> {
         String labelEnd = newLabel();
 
         visit(ctx.expr());
-        emit("LABEL " + labelFalse);
+        emit("JUMPF " + labelFalse);
 
         visit(ctx.statement(0));
 
@@ -105,11 +105,11 @@ public class CodeGenVisitor extends ProjectLangBaseVisitor<Void> {
         emit("LABEL " + labelStart);
 
         visit(ctx.expr());
-        emit("LABEL " + labelEnd);
+        emit("JUMPF " + labelEnd);
 
         visit(ctx.statement());
 
-        emit("LABEL " + labelStart);
+        emit("JMP " + labelStart);
         emit("LABEL " + labelEnd);
 
         return null;
