@@ -5,32 +5,45 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 
+import java.io.FileWriter;
+import java.io.IOException;
+
 public class Main {
     public static void main(String[] args) throws Exception {
         String testProgram = """
-                    int a, b;
-                    a = 5;
-                    b = a + 10;
-                    write b;
+                int a, i;
+                a = 0;
+                i = 1;
+                
+                while (i < 5) {
+                    a = a + i;
+                    i = i + 1;
+                }
+                
+                write a;
                 """;
 
         CharStream input = CharStreams.fromString(testProgram);
-
         ProjectLangLexer lexer = new ProjectLangLexer(input);
-
         CommonTokenStream tokens = new CommonTokenStream(lexer);
-
         ProjectLangParser parser = new ProjectLangParser(tokens);
-
         ParseTree tree = parser.program();
 
-        System.out.println("Abstract Syntax Tree:");
-        System.out.println(tree.toStringTree(parser));
-        System.out.println();
-
-        System.out.println("Type checking...");
-        TypeCheckerTree typeChecker = new TypeCheckerTree();
+        TypeCheckerVisitor typeChecker = new TypeCheckerVisitor();
         typeChecker.visit(tree);
-        System.out.println("Done.");
+
+        System.out.println("Generating code...");
+        CodeGenVisitor codeGen = new CodeGenVisitor();
+        codeGen.visit(tree);
+
+        String outputCode = codeGen.getGeneratedCode();
+        System.out.println("Generated code:\n" + outputCode);
+
+        try (FileWriter writer = new FileWriter("output.txt")) {
+            writer.write(outputCode);
+            System.out.println("Generated code was saved in file output.txt");
+        } catch (IOException e) {
+            System.err.println("Error while saving to file: " + e.getMessage());
+        }
     }
 }

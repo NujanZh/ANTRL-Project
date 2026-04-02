@@ -5,7 +5,7 @@ import org.nur.exception.TypeCheckerException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TypeCheckerTree extends ProjectLangBaseVisitor<String> {
+public class TypeCheckerVisitor extends ProjectLangBaseVisitor<String> {
 
     private static final String TYPE_INT = "int";
     private static final String TYPE_FLOAT = "float";
