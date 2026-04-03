@@ -132,6 +132,7 @@ public class CodeGenVisitor extends ProjectLangBaseVisitor<String> {
         }
 
         emit("save " + varName);
+        emit("load " + varName);
         return varType;
     }
 
