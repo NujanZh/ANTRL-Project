@@ -2,16 +2,14 @@ package org.nur;
 
 import org.nur.exception.InterpreterException;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Stack;
+import java.util.*;
 
 public class Interpreter {
 
-    private final Stack<Object> stack = new Stack<>();
+    private final Deque<Object> stack = new ArrayDeque<>();
     private final Map<String, Object> memory = new HashMap<>();
-    private final Map<String, Integer> labels = new HashMap<>();
+    private final Map<Integer, Integer> labels = new HashMap<>();
+    private final Scanner scanner = new Scanner(System.in);
 
     public void execute(List<String> instructions) {
         scanLabels(instructions);
@@ -25,7 +23,7 @@ public class Interpreter {
 
             String[] parts = line.split(" ");
             if (parts[0].equals("LABEL")) {
-                labels.put(parts[1], i);
+                labels.put(Integer.parseInt(parts[1]), i);
             }
         }
     }
@@ -44,24 +42,27 @@ public class Interpreter {
             String opcode = parts[0];
 
             switch (opcode) {
-                case "PUSH"          -> executePush(parts[1], parts[2]);
-                case "LOAD"          -> stack.push(memory.get(parts[1]));
-                case "STORE"         -> memory.put(parts[1], stack.pop());
-                case "WRITE"         -> executeWrite();
-                case "ADD", "SUB",
-                     "MUL", "DIV"    -> executeMathOp(opcode);
-                case "MOD"           -> executeModOp();
-                case "CONCAT"        -> executeConcatOp();
-                case "LT", "GT"      -> executeRelationalOp(opcode);
-                case "EQ", "NEQ"     -> executeEqualityOp(opcode);
-                case "AND", "OR"     -> executeLogicalOp(opcode);
-                case "NOT", "UMINUS" -> executeUnaryOp(opcode);
-                case "LABEL" -> {}
-                case "JMP" -> ip = labels.get(parts[1]) - 1;
-                case "JUMPF" -> {
+                case "push"          -> executePush(parts[1], parts[2]);
+                case "pop"           -> stack.pop();
+                case "load"          -> stack.push(memory.get(parts[1]));
+                case "save"          -> memory.put(parts[1], stack.pop());
+                case "itof"          -> stack.push(((Integer) stack.pop()).floatValue());
+                case "add", "sub",
+                     "mul", "div"    -> executeMathOp(opcode, parts[1]);
+                case "mod"           -> executeModOp();
+                case "concat"        -> executeConcatOp();
+                case "lt", "gt"      -> executeRelationalOp(opcode, parts[1]);
+                case "eq"            -> executeEqualityOp();
+                case "and", "or"     -> executeLogicalOp(opcode);
+                case "not", "uminus" -> executeUnaryOp(opcode, parts[1]);
+                case "print"         -> executePrint(Integer.parseInt(parts[1]));
+                case "read"          -> executeRead(parts[1]);
+                case "label"         -> {}
+                case "jmp"           -> ip = labels.get(Integer.parseInt(parts[1])) - 1;
+                case "fjmp"          -> {
                     boolean condition = (Boolean) stack.pop();
                     if (!condition) {
-                        ip = labels.get(parts[1]) - 1;
+                        ip = labels.get(Integer.parseInt(parts[1])) - 1;
                     }
                 }
 
@@ -77,84 +78,70 @@ public class Interpreter {
             case "I" -> stack.push(Integer.parseInt(value));
             case "F" -> stack.push(Float.parseFloat(value));
             case "B" -> stack.push(Boolean.parseBoolean(value));
-            case "S" -> stack.push(value.substring(1, value.length() - 1));
+            case "S" -> {
+                if (value.startsWith("\"") && value.endsWith("\"")) {
+                    stack.push(value.substring(1, value.length() - 1));
+                }
+                stack.push(value);
+            }
             default -> throw new InterpreterException("Unknown type prefix: " + type);
         }
     }
 
-    private void executeMathOp(String opcode) {
-        Object right = stack.pop();
-        Object left = stack.pop();
-
-        if (left instanceof Float || right instanceof Float) {
-            float l = toFloat(left);
-            float r = toFloat(right);
+    private void executeMathOp(String opcode, String type) {
+        if (type.equals("F")) {
+            float right = (Float) stack.pop();
+            float left = (Float) stack.pop();
             switch (opcode) {
-                case "ADD" -> stack.push(l + r);
-                case "SUB" -> stack.push(l - r);
-                case "MUL" -> stack.push(l * r);
-                case "DIV" -> {
-                    if (r == 0f) throw new InterpreterException("Division by zero.");
-                    stack.push(l / r);
+                case "add" -> stack.push(left + right);
+                case "sub" -> stack.push(left - right);
+                case "mul" -> stack.push(left * right);
+                case "div" -> {
+                    if (right == 0f) throw new InterpreterException("Division by zero.");
+                    stack.push(left / right);
                 }
                 default -> throw new InterpreterException("Unknown math operator: " + opcode);
             }
         } else {
-            int l = (Integer) left;
-            int r = (Integer) right;
+            float right = (Integer) stack.pop();
+            float left = (Integer) stack.pop();
             switch (opcode) {
-                case "ADD" -> stack.push(l + r);
-                case "SUB" -> stack.push(l - r);
-                case "MUL" -> stack.push(l * r);
-                case "DIV" -> {
-                    if (r == 0) throw new InterpreterException("Division by zero.");
-                    stack.push(l / r);
+                case "add" -> stack.push(left + right);
+                case "sub" -> stack.push(left - right);
+                case "mul" -> stack.push(left * right);
+                case "div" -> {
+                    if (right == 0) throw new InterpreterException("Division by zero.");
+                    stack.push(left / right);
                 }
                 default -> throw new InterpreterException("Unknown math operator: " + opcode);
             }
         }
     }
 
-    private void executeRelationalOp(String opcode) {
-        Object right = stack.pop();
-        Object left = stack.pop();
-
-        if (left instanceof Float || right instanceof Float) {
-            float l = toFloat(left);
-            float r = toFloat(right);
+    private void executeRelationalOp(String opcode, String type) {
+        if (type.equals("F")) {
+            float left = (Float) stack.pop();
+            float right = (Float) stack.pop();
             switch (opcode) {
-                case "LT" -> stack.push(l < r);
-                case "GT" -> stack.push(l > r);
+                case "lt" -> stack.push(left < right);
+                case "gt" -> stack.push(left > right);
                 default   -> throw new InterpreterException("Unknown relational operator: " + opcode);
             }
         } else {
-            int l = (Integer) left;
-            int r = (Integer) right;
+            int left = (Integer) stack.pop();
+            int right = (Integer) stack.pop();
             switch (opcode) {
-                case "LT" -> stack.push(l < r);
-                case "GT" -> stack.push(l > r);
+                case "lt" -> stack.push(left < right);
+                case "gt" -> stack.push(left > right);
                 default   -> throw new InterpreterException("Unknown relational operator: " + opcode);
             }
         }
     }
 
-    private void executeEqualityOp(String opcode) {
+    private void executeEqualityOp() {
         Object right = stack.pop();
         Object left = stack.pop();
-
-        boolean isEqual;
-        if ((left instanceof Float || left instanceof Integer) &&
-                (right instanceof Float || right instanceof Integer)) {
-            isEqual = toFloat(left).equals(toFloat(right));
-        } else {
-            isEqual = left.equals(right);
-        }
-
-        switch (opcode) {
-            case "EQ"  -> stack.push(isEqual);
-            case "NEQ" -> stack.push(!isEqual);
-            default    -> throw new InterpreterException("Unknown equality operator: " + opcode);
-        }
+        stack.push(left.equals(right));
     }
 
     private void executeModOp() {
@@ -174,28 +161,41 @@ public class Interpreter {
         boolean right = (Boolean) stack.pop();
         boolean left = (Boolean) stack.pop();
         switch (opcode) {
-            case "AND" -> stack.push(left && right);
-            case "OR"  -> stack.push(left || right);
+            case "and" -> stack.push(left && right);
+            case "or"  -> stack.push(left || right);
             default    -> throw new InterpreterException("Unknown logical operator: " + opcode);
         }
     }
 
-    private void executeUnaryOp(String opcode) {
+    private void executeUnaryOp(String opcode, String type) {
         Object val = stack.pop();
         switch (opcode) {
-            case "NOT"    -> stack.push(!(Boolean) val);
-            case "UMINUS" -> stack.push(val instanceof Float floatVal ? -floatVal : -(Integer) val);
+            case "not"    -> stack.push(!(Boolean) val);
+            case "uminus" -> stack.push(type.equals("F") ? -((Float) val) : -((Integer) val));
             default       -> throw new InterpreterException("Unknown unary operator: " + opcode);
         }
     }
 
-    private void executeWrite() {
-        System.out.println(stack.pop());
+    private void executeRead(String type) {
+        System.out.print("> ");
+        switch (type) {
+            case "I" -> stack.push(scanner.nextInt());
+            case "F" -> stack.push(scanner.nextFloat());
+            case "B" -> stack.push(scanner.nextBoolean());
+            case "S" -> stack.push(scanner.next());
+            default  -> throw new InterpreterException("Unknown type prefix: " + type);
+        }
     }
 
-    private static Float toFloat(Object obj) {
-        if (obj instanceof Float floatObject) return floatObject;
-        if (obj instanceof Integer integerObject) return integerObject.floatValue();
-        throw new InterpreterException("Cannot cast " + obj.getClass().getSimpleName() + " to Float.");
+    private void executePrint(int count) {
+        List<Object> toPrint = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            toPrint.add(stack.pop());
+        }
+        Collections.reverse(toPrint);
+        for (Object obj : toPrint) {
+            System.out.print(obj);
+        }
+        System.out.println();
     }
 }

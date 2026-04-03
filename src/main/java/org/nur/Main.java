@@ -13,16 +13,13 @@ import java.util.List;
 public class Main {
     public static void main(String[] args) throws Exception {
         String testProgram = """
-                int a, i;
-                a = 0;
-                i = 1;
-                
-                while (i < 5) {
-                    a = a + i;
-                    i = i + 1;
-                }
-                
-                write a;
+                int a;
+                float b;
+                string c;
+                read a;
+                b = a + 10.5;
+                c = \"Result: \";
+                write c, b;
                 """;
 
         CharStream input = CharStreams.fromString(testProgram);
